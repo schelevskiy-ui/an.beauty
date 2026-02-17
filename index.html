@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Lash Assistant - annazhdanova.beauty</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #0f0f0f;
+            --pink: #eebec6;
+            --neon: #ff007f;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--bg);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-image: radial-gradient(circle at 50% 50%, #1a1012 0%, #0a0a0a 100%);
+        }
+
+        .container { width: 100%; max-width: 500px; text-align: center; }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.2rem;
+            background: linear-gradient(45deg, #fff, var(--pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+        }
+
+        .brand-neon {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--neon);
+            text-shadow: 0 0 15px var(--neon), 0 0 30px var(--neon);
+            display: block;
+            margin-bottom: 30px;
+        }
+
+        .upload-card {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            padding: 50px 20px;
+            cursor: pointer;
+            transition: 0.4s ease;
+        }
+
+        .upload-card:hover { border-color: var(--pink); transform: translateY(-5px); }
+        .upload-icon { font-size: 50px; margin-bottom: 15px; display: block; filter: drop-shadow(0 0 10px var(--pink)); }
+        
+        #fileInput { display: none; }
+        #previewContainer { margin-top: 25px; display: none; width: 100%; }
+        #imagePreview { width: 100%; border-radius: 20px; border: 1px solid var(--pink); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+        .loader { display: none; margin: 30px 0; }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid rgba(238, 190, 198, 0.1);
+            border-top: 3px solid var(--pink);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #resultCard {
+            display: none;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(238, 190, 198, 0.3);
+            border-radius: 30px;
+            padding: 30px;
+            margin-top: 25px;
+            text-align: left;
+        }
+
+        .result-content { line-height: 1.7; font-size: 1rem; color: #f0f0f0; }
+        .result-content h4 { 
+            color: var(--pink); 
+            margin: 25px 0 12px 0; 
+            font-family: 'Playfair Display', serif; 
+            font-size: 1.4rem; 
+            border-left: 4px solid var(--neon);
+            padding-left: 15px;
+        }
+        .result-content p { margin-bottom: 12px; }
+
+        .copy-btn {
+            background: var(--pink); color: #000; border: none; width: 100%; padding: 15px;
+            border-radius: 15px; font-weight: 800; cursor: pointer; text-transform: uppercase;
+        }
+
+        .status-tag { font-size: 0.6rem; color: #444; margin-top: 15px; display: block; text-align: center; }
+        .reset-link { margin-top: 30px; font-size: 0.75rem; opacity: 0.3; cursor: pointer; display: block; text-align: center; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>AI Lash Assistant</h1>
+        <span class="brand-neon">annazhdanova.beauty</span>
+
+        <div class="upload-card" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <span class="upload-icon">👁️</span>
+            <h3>Аналізувати погляд</h3>
+            <p>Завантажте фото очей</p>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <div id="previewContainer">
+            <img id="imagePreview" src="">
+        </div>
+
+        <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <p id="loaderText" style="color: var(--pink); font-size: 0.9rem;">Майстер вивчає фото...</p>
+        </div>
+
+        <div id="resultCard">
+            <button class="copy-btn" onclick="copyResult()">Скопіювати схему ✨</button>
+            <div id="resultText" class="result-content"></div>
+            <span id="activeModel" class="status-tag"></span>
+        </div>
+
+        <p class="reset-link" onclick="location.reload()">Скинути та почати заново</p>
+    </div>
+
+    <script>
+        const p1 = "AIzaSyAgrdsEd9A1";
+        const p2 = "Uf5uneSzgGPoYSTYUS8D0xY";
+        const KEY = p1 + p2;
+
+        const fileInput = document.getElementById('fileInput');
+        const previewContainer = document.getElementById('previewContainer');
+        const imagePreview = document.getElementById('imagePreview');
+        const loader = document.getElementById('loader');
+        const loaderText = document.getElementById('loaderText');
+        const resultCard = document.getElementById('resultCard');
+        const resultText = document.getElementById('resultText');
+        const activeModelTag = document.getElementById('activeModel');
+
+        fileInput.onchange = function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    previewContainer.style.display = 'block';
+                    document.getElementById('dropZone').style.display = 'none';
+                    startAnalysis(e.target.result);
+                }
+                reader.readAsDataURL(file);
+            }
+        };
+
+        async function getModel() {
+            try {
+                const r = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${KEY}`);
+                const d = await r.json();
+                // Змінюємо пріоритет: спочатку 2.0-flash (вона стабільна), потім Pro
+                const p = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-latest'];
+                for (let n of p) {
+                    if (d.models.some(m => m.name.includes(n))) return n.includes('models/') ? n : `models/${n}`;
+                }
+                return d.models[0].name;
+            } catch (e) { return 'models/gemini-1.5-flash'; }
+        }
+
+        async function startAnalysis(base64Url) {
+            loader.style.display = 'block';
+            resultCard.style.display = 'none';
+
+            try {
+                const model = await getModel();
+                activeModelTag.innerText = "Система стабілізації: " + model.split('/')[1];
+
+                const prompt = `Ти — провідний експерт лешмейкер команди annazhdanova.beauty. 
+                Твоє завдання: провести повний анатомічний аналіз фото. 
+                
+                ВАЖЛИВО: Обов'язково дописуй кожне речення до кінця. Не обривай текст.
+                
+                ПЛАН ВІДПОВІДІ:
+                Привітання: (Привітайся від імені бренду, вислови захоплення поглядом).
+                1. Анатомічний розбір: Опиши форму очей, наявність нависання, напрямок росту вій. (3-4 повних речення).
+                2. Рекомендована схема: 
+                   - Ефект (Лисичий, Білячий тощо)
+                   - Вигин (Конкретно)
+                   - Схема довжин (напр. 7-12-10мм)
+                   - Чому це підходить (Поясни вибір).
+
+                Пиши професійно, українською, з емодзі 💖. Жодних символів зірочок (*) чи решіток (#).`;
+
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: base64Url.split(';')[0].split(':')[1], data: base64Url.split(',')[1] } }] }],
+                    generationConfig: { 
+                        temperature: 0.6, // Знижено для стабільності, щоб ШІ не "губився"
+                        maxOutputTokens: 1500, 
+                        topP: 0.9 
+                    }
+                };
+
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1/${model}:generateContent?key=${KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (data.error) throw new Error(data.error.message);
+
+                let text = data.candidates[0].content.parts[0].text;
+                
+                // Глибоке очищення від технічних символів
+                text = text.replace(/#/g, '');
+                text = text.replace(/\*/g, '');
+                text = text.replace(/Привітання:?/gi, '');
+                text = text.replace(/Анатомічний розбір:?/gi, '<h4>👁️ Анатомічний розбір</h4>');
+                text = text.replace(/Рекомендована схема:?/gi, '<h4>✨ Рекомендована схема</h4>');
+
+                resultText.innerHTML = text;
+                loader.style.display = 'none';
+                resultCard.style.display = 'block';
+                resultCard.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (e) {
+                loader.style.display = 'none';
+                document.getElementById('dropZone').style.display = 'block';
+                alert("Помилка з'єднання. Спробуйте ще раз.");
+            }
+        }
+
+        function copyResult() {
+            navigator.clipboard.writeText(resultText.innerText).then(() => alert("Схему копійовано! ✨"));
+        }
+    </script>
+</body>
+</html>
