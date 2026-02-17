@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Lash Assistant - annazhdanova.beauty</title>
+    <title>AI Lash Assistant - Тільки для - annazhdanova.beauty</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 
     <style>
@@ -98,7 +98,6 @@
             border-left: 4px solid var(--neon);
             padding-left: 15px;
         }
-        .result-content p { margin-bottom: 12px; }
 
         .copy-btn {
             background: var(--pink); color: #000; border: none; width: 100%; padding: 15px;
@@ -172,13 +171,17 @@
             try {
                 const r = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${KEY}`);
                 const d = await r.json();
-                // Змінюємо пріоритет: спочатку 2.0-flash (вона стабільна), потім Pro
-                const p = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-latest'];
+                if (d.error) throw new Error(d.error.message);
+                
+                // Пріоритет: Стабільні версії 1.5, потім 2.0 (якщо дозволить ліміт)
+                const p = ['gemini-1.5-flash-002', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
                 for (let n of p) {
                     if (d.models.some(m => m.name.includes(n))) return n.includes('models/') ? n : `models/${n}`;
                 }
                 return d.models[0].name;
-            } catch (e) { return 'models/gemini-1.5-flash'; }
+            } catch (e) { 
+                return 'models/gemini-1.5-flash'; 
+            }
         }
 
         async function startAnalysis(base64Url) {
@@ -186,30 +189,35 @@
             resultCard.style.display = 'none';
 
             try {
+                loaderText.innerText = "Обираємо канал зв'язку...";
                 const model = await getModel();
-                activeModelTag.innerText = "Система стабілізації: " + model.split('/')[1];
+                activeModelTag.innerText = "Модель: " + model.split('/')[1];
+
+                loaderText.innerText = "Вивчаємо анатомію очей...";
+                const mimeType = base64Url.split(';')[0].split(':')[1];
+                const base64Data = base64Url.split(',')[1];
 
                 const prompt = `Ти — провідний експерт лешмейкер команди annazhdanova.beauty. 
-                Твоє завдання: провести повний анатомічний аналіз фото. 
+                Твоє завдання: провести ДЕТАЛЬНИЙ анатомічний аналіз фото. 
                 
-                ВАЖЛИВО: Обов'язково дописуй кожне речення до кінця. Не обривай текст.
+                ВАЖЛИВО: Пиши розгорнуто. Не обривай речення. Обов'язково закінчуй думку технічною схемою.
                 
                 ПЛАН ВІДПОВІДІ:
-                Привітання: (Привітайся від імені бренду, вислови захоплення поглядом).
-                1. Анатомічний розбір: Опиши форму очей, наявність нависання, напрямок росту вій. (3-4 повних речення).
+                Привітання: (Привітайся від імені бренду, вислови захоплення).
+                1. Анатомічний розбір: Опиши форму очей, посадку, наявність нависання, напрямок росту вій. (Мінімум 3 речення).
                 2. Рекомендована схема: 
                    - Ефект (Лисичий, Білячий тощо)
                    - Вигин (Конкретно)
                    - Схема довжин (напр. 7-12-10мм)
-                   - Чому це підходить (Поясни вибір).
+                   - Чому це підходить.
 
-                Пиши професійно, українською, з емодзі 💖. Жодних символів зірочок (*) чи решіток (#).`;
+                Пиши професійно, українською, з емодзі 💖. Жодних зірочок (*) чи решіток (#).`;
 
                 const payload = {
-                    contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: base64Url.split(';')[0].split(':')[1], data: base64Url.split(',')[1] } }] }],
+                    contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: base64Data } }] }],
                     generationConfig: { 
-                        temperature: 0.6, // Знижено для стабільності, щоб ШІ не "губився"
-                        maxOutputTokens: 1500, 
+                        temperature: 0.6,
+                        maxOutputTokens: 2000, 
                         topP: 0.9 
                     }
                 };
@@ -221,31 +229,37 @@
                 });
 
                 const data = await res.json();
-                if (data.error) throw new Error(data.error.message);
-
-                let text = data.candidates[0].content.parts[0].text;
                 
-                // Глибоке очищення від технічних символів
-                text = text.replace(/#/g, '');
-                text = text.replace(/\*/g, '');
-                text = text.replace(/Привітання:?/gi, '');
-                text = text.replace(/Анатомічний розбір:?/gi, '<h4>👁️ Анатомічний розбір</h4>');
-                text = text.replace(/Рекомендована схема:?/gi, '<h4>✨ Рекомендована схема</h4>');
+                if (data.error) {
+                    throw new Error(data.error.message); // Виведемо точну помилку Google
+                }
 
-                resultText.innerHTML = text;
-                loader.style.display = 'none';
-                resultCard.style.display = 'block';
-                resultCard.scrollIntoView({ behavior: 'smooth' });
+                if (data.candidates && data.candidates[0].content) {
+                    let text = data.candidates[0].content.parts[0].text;
+                    
+                    // Форматування
+                    text = text.replace(/#/g, '').replace(/\*/g, '').replace(/Привітання:?/gi, '');
+                    text = text.replace(/Анатомічний розбір:?/gi, '<h4>👁️ Анатомічний розбір</h4>');
+                    text = text.replace(/Рекомендована схема:?/gi, '<h4>✨ Рекомендована схема</h4>');
+
+                    resultText.innerHTML = text;
+                    loader.style.display = 'none';
+                    resultCard.style.display = 'block';
+                    resultCard.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    throw new Error("AI не зміг сформувати відповідь. Спробуйте інше фото.");
+                }
 
             } catch (e) {
                 loader.style.display = 'none';
                 document.getElementById('dropZone').style.display = 'block';
-                alert("Помилка з'єднання. Спробуйте ще раз.");
+                // ТЕПЕР МИ ПОБАЧИМО РЕАЛЬНУ ПОМИЛКУ:
+                alert("Діагностика помилки: " + e.message);
             }
         }
 
         function copyResult() {
-            navigator.clipboard.writeText(resultText.innerText).then(() => alert("Схему копійовано! ✨"));
+            navigator.clipboard.writeText(resultText.innerText).then(() => alert("Схему скопійовано! ✨"));
         }
     </script>
 </body>
